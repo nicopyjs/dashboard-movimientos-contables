@@ -1,0 +1,4 @@
+# Real accounting data snapshots used only for local-dev fallback.
+# Must never be uploaded to Vercel — this repo has no .git yet, so
+# .gitignore alone is not enough to keep Vercel CLI from bundling it.
+/data
