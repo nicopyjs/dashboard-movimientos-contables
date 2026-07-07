@@ -138,11 +138,12 @@ export type CentroActivity = {
   movimientos: number;
   debitTotal: number; // suma de debit, solo cuentas de ingreso (3) y gasto (4)
   creditTotal: number; // suma de credit, solo cuentas de ingreso (3) y gasto (4)
-  resultado: number; // debitTotal - creditTotal
+  resultado: number; // (credit - debit) de cuentas de ingreso, menos (debit - credit) de cuentas de gasto
 };
 
 export function getTopCentrosByActivity(rows: MovementRow[], limit = 10): CentroActivity[] {
-  const map = new Map<string, CentroActivity>();
+  type Accumulator = CentroActivity & { ingresoNeto: number; gastoNeto: number };
+  const map = new Map<string, Accumulator>();
   for (const row of rows) {
     if (!row.businessCenterId) continue;
     const existing = map.get(row.businessCenterId) ?? {
@@ -152,16 +153,34 @@ export function getTopCentrosByActivity(rows: MovementRow[], limit = 10): Centro
       debitTotal: 0,
       creditTotal: 0,
       resultado: 0,
+      ingresoNeto: 0,
+      gastoNeto: 0,
     };
     existing.movimientos += 1;
-    if (row.nature === "Ingreso" || row.nature === "Gasto") {
+    // Cuentas de ingreso (3xxx) tienen saldo natural acreedor: un haber es
+    // una ganancia. Cuentas de gasto (4xxx) tienen saldo natural deudor: un
+    // debe es un costo. Restar ambos netos da la utilidad del centro.
+    if (row.nature === "Ingreso") {
       existing.debitTotal += row.debit;
       existing.creditTotal += row.credit;
-      existing.resultado = existing.debitTotal - existing.creditTotal;
+      existing.ingresoNeto += row.credit - row.debit;
+    } else if (row.nature === "Gasto") {
+      existing.debitTotal += row.debit;
+      existing.creditTotal += row.credit;
+      existing.gastoNeto += row.debit - row.credit;
     }
+    existing.resultado = existing.ingresoNeto - existing.gastoNeto;
     map.set(row.businessCenterId, existing);
   }
   return [...map.values()]
+    .map(({ businessCenterId, centroNombre, movimientos, debitTotal, creditTotal, resultado }) => ({
+      businessCenterId,
+      centroNombre,
+      movimientos,
+      debitTotal,
+      creditTotal,
+      resultado,
+    }))
     .sort((a, b) => b.debitTotal + b.creditTotal - (a.debitTotal + a.creditTotal))
     .slice(0, limit);
 }
