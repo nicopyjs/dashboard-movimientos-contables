@@ -54,6 +54,7 @@ export default async function Home({
   });
   const pnlForTrend = filterPnlRows(data.pnlRows, {
     year: showFullHistory ? undefined : selectedYear,
+    month: selectedMonth || undefined,
     area: selectedArea || undefined,
   });
 
