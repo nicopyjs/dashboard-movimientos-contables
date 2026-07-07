@@ -17,7 +17,9 @@ export function TopCentrosTable({ rows }: { rows: CentroActivity[] }) {
           <tr>
             <th className="px-4 py-2 text-left font-medium text-slate-500">Centro de negocio</th>
             <th className="px-4 py-2 text-right font-medium text-slate-500">Movimientos</th>
-            <th className="px-4 py-2 text-right font-medium text-slate-500">Monto total</th>
+            <th className="px-4 py-2 text-right font-medium text-slate-500">Debe</th>
+            <th className="px-4 py-2 text-right font-medium text-slate-500">Haber</th>
+            <th className="px-4 py-2 text-right font-medium text-slate-500">Resultado</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -28,7 +30,17 @@ export function TopCentrosTable({ rows }: { rows: CentroActivity[] }) {
                 {row.movimientos}
               </td>
               <td className="px-4 py-2 text-right tabular-nums text-slate-700">
-                {formatCLP(row.montoTotal)}
+                {formatCLP(row.debitTotal)}
+              </td>
+              <td className="px-4 py-2 text-right tabular-nums text-slate-700">
+                {formatCLP(row.creditTotal)}
+              </td>
+              <td
+                className={`px-4 py-2 text-right tabular-nums font-medium ${
+                  row.resultado >= 0 ? "text-emerald-700" : "text-red-700"
+                }`}
+              >
+                {formatCLP(row.resultado)}
               </td>
             </tr>
           ))}

@@ -136,28 +136,34 @@ export type CentroActivity = {
   businessCenterId: string;
   centroNombre: string;
   movimientos: number;
-  montoTotal: number;
+  debitTotal: number; // suma de debit, solo cuentas de ingreso (3) y gasto (4)
+  creditTotal: number; // suma de credit, solo cuentas de ingreso (3) y gasto (4)
+  resultado: number; // debitTotal - creditTotal
 };
 
 export function getTopCentrosByActivity(rows: MovementRow[], limit = 10): CentroActivity[] {
   const map = new Map<string, CentroActivity>();
   for (const row of rows) {
     if (!row.businessCenterId) continue;
-    const monto = row.debit + row.credit;
-    const existing = map.get(row.businessCenterId);
-    if (existing) {
-      existing.movimientos += 1;
-      existing.montoTotal += monto;
-    } else {
-      map.set(row.businessCenterId, {
-        businessCenterId: row.businessCenterId,
-        centroNombre: row.centroNombre,
-        movimientos: 1,
-        montoTotal: monto,
-      });
+    const existing = map.get(row.businessCenterId) ?? {
+      businessCenterId: row.businessCenterId,
+      centroNombre: row.centroNombre,
+      movimientos: 0,
+      debitTotal: 0,
+      creditTotal: 0,
+      resultado: 0,
+    };
+    existing.movimientos += 1;
+    if (row.nature === "Ingreso" || row.nature === "Gasto") {
+      existing.debitTotal += row.debit;
+      existing.creditTotal += row.credit;
+      existing.resultado = existing.debitTotal - existing.creditTotal;
     }
+    map.set(row.businessCenterId, existing);
   }
-  return [...map.values()].sort((a, b) => b.montoTotal - a.montoTotal).slice(0, limit);
+  return [...map.values()]
+    .sort((a, b) => b.debitTotal + b.creditTotal - (a.debitTotal + a.creditTotal))
+    .slice(0, limit);
 }
 
 export type CentroOption = { id: string; label: string };
