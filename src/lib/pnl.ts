@@ -41,16 +41,16 @@ export async function getPnlRows(): Promise<PnlRow[]> {
 }
 
 export type PnlFilters = {
-  year?: number;
-  month?: number;
-  area?: string;
+  years?: number[];
+  months?: number[];
+  areas?: string[];
 };
 
 export function filterPnlRows(rows: PnlRow[], filters: PnlFilters): PnlRow[] {
   return rows.filter((r) => {
-    if (filters.year && r.year !== filters.year) return false;
-    if (filters.month && r.month !== filters.month) return false;
-    if (filters.area && r.area !== filters.area) return false;
+    if (filters.years?.length && !filters.years.includes(r.year)) return false;
+    if (filters.months?.length && !filters.months.includes(r.month)) return false;
+    if (filters.areas?.length && !filters.areas.includes(r.area)) return false;
     return true;
   });
 }

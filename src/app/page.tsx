@@ -42,21 +42,34 @@ export default async function Home({
 
   const years = [...new Set(data.pnlRows.map((r) => r.year))].sort((a, b) => a - b);
   const latestYear = years[years.length - 1] ?? new Date().getFullYear();
-  const selectedYear = Number(year) || latestYear;
-  const selectedMonth = Number(month) || 0;
-  const selectedArea = area ?? "";
-  const selectedCentro = centro ?? "";
+  // `year` absent = filter never touched yet, default to the latest year.
+  // `year` present but empty = user explicitly cleared it, meaning "todos".
+  const selectedYears =
+    year === undefined
+      ? [latestYear]
+      : year
+          .split(",")
+          .map(Number)
+          .filter((n) => Number.isFinite(n) && n > 0);
+  const selectedMonths = month
+    ? month
+        .split(",")
+        .map(Number)
+        .filter((n) => Number.isFinite(n) && n > 0)
+    : [];
+  const selectedAreas = area ? area.split(",").filter(Boolean) : [];
+  const selectedCentros = centro ? centro.split(",").filter(Boolean) : [];
   const showFullHistory = full === "1";
 
   const pnlForKpi = filterPnlRows(data.pnlRows, {
-    year: selectedYear,
-    month: selectedMonth || undefined,
-    area: selectedArea || undefined,
+    years: selectedYears,
+    months: selectedMonths,
+    areas: selectedAreas,
   });
   const pnlForTrend = filterPnlRows(data.pnlRows, {
-    year: showFullHistory ? undefined : selectedYear,
-    month: selectedMonth || undefined,
-    area: selectedArea || undefined,
+    years: showFullHistory ? [] : selectedYears,
+    months: selectedMonths,
+    areas: selectedAreas,
   });
 
   const ingresos = pnlForKpi.reduce((sum, r) => sum + r.ingresos, 0);
@@ -67,16 +80,17 @@ export default async function Home({
   const monthly = summarizeByMonth(pnlForTrend);
   const areaData = summarizeByArea(pnlForKpi);
 
-  const movimientosForYear = data.movimientos.filter((m) => m.fiscalYear === String(selectedYear));
-  const movFiltered = filterMovimientos(movimientosForYear, {
-    month: selectedMonth || undefined,
-    area: selectedArea || undefined,
-    businessCenterId: selectedCentro || undefined,
+  const movFiltered = filterMovimientos(data.movimientos, {
+    years: selectedYears,
+    months: selectedMonths,
+    areas: selectedAreas,
+    businessCenterIds: selectedCentros,
   });
   const sortedMovements = sortMovementsDesc(movFiltered);
   const movementsPage = paginateMovements(sortedMovements, Number(page) || 1);
   const topCentros = getTopCentrosByActivity(movFiltered, 10);
-  const hasDetailForYear = movimientosForYear.length > 0;
+  const hasDetailForYear =
+    filterMovimientos(data.movimientos, { years: selectedYears }).length > 0;
 
   return (
     <div className="min-h-full flex-1 bg-slate-50">
@@ -120,12 +134,12 @@ export default async function Home({
             </h2>
             <Filters
               years={years}
-              selectedYear={selectedYear}
-              selectedMonth={selectedMonth}
+              selectedYears={selectedYears}
+              selectedMonths={selectedMonths}
               areaOptions={AREA_OPTIONS}
-              selectedArea={selectedArea}
+              selectedAreas={selectedAreas}
               centroOptions={data.centroOptions}
-              selectedCentro={selectedCentro}
+              selectedCentros={selectedCentros}
             />
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -193,8 +207,8 @@ export default async function Home({
 
         {!hasDetailForYear && (
           <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-700">
-            El detalle de movimientos (tablas de abajo) solo está disponible para {latestYear};
-            para años anteriores solo se muestra el resumen agregado de arriba.
+            El detalle de movimientos (tablas de abajo) no está disponible para el/los año(s)
+            seleccionado(s); solo se muestra el resumen agregado de arriba.
           </p>
         )}
 

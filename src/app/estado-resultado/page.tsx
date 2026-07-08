@@ -41,17 +41,30 @@ export default async function EstadoResultadoPage({
 
   const years = [...new Set(data.pnlRows.map((r) => r.year))].sort((a, b) => a - b);
   const latestYear = years[years.length - 1] ?? new Date().getFullYear();
-  const selectedYear = Number(year) || latestYear;
-  const selectedMonth = Number(month) || 0;
-  const selectedArea = area ?? "";
+  // `year` absent = filter never touched yet, default to the latest year.
+  // `year` present but empty = user explicitly cleared it, meaning "todos".
+  const selectedYears =
+    year === undefined
+      ? [latestYear]
+      : year
+          .split(",")
+          .map(Number)
+          .filter((n) => Number.isFinite(n) && n > 0);
+  const selectedMonths = month
+    ? month
+        .split(",")
+        .map(Number)
+        .filter((n) => Number.isFinite(n) && n > 0)
+    : [];
+  const selectedAreas = area ? area.split(",").filter(Boolean) : [];
   const activeTab: EstadoResultadoTab = ESTADO_RESULTADO_TABS.some((t) => t.id === tab)
     ? (tab as EstadoResultadoTab)
     : "ingresos";
 
   const pnlForPeriod = filterPnlRows(data.pnlRows, {
-    year: selectedYear,
-    month: selectedMonth || undefined,
-    area: selectedArea || undefined,
+    years: selectedYears,
+    months: selectedMonths,
+    areas: selectedAreas,
   });
   const monthly = summarizeByMonth(pnlForPeriod);
   const areaData = summarizeByArea(pnlForPeriod);
@@ -71,10 +84,10 @@ export default async function EstadoResultadoPage({
     .sort((a, b) => b.gastos - a.gastos)
     .map((a) => ({ areaLabel: a.areaLabel, value: a.gastos }));
 
-  const movimientosForYear = data.movimientos.filter((m) => m.fiscalYear === String(selectedYear));
-  const movFiltered = filterMovimientos(movimientosForYear, {
-    month: selectedMonth || undefined,
-    area: selectedArea || undefined,
+  const movFiltered = filterMovimientos(data.movimientos, {
+    years: selectedYears,
+    months: selectedMonths,
+    areas: selectedAreas,
   });
 
   const gastoMovements = sortMovementsDesc(movFiltered.filter((m) => m.nature === "Gasto"));
@@ -115,13 +128,13 @@ export default async function EstadoResultadoPage({
 
       <main className="mx-auto max-w-7xl space-y-6 px-6 py-8">
         <section className="flex flex-wrap items-center justify-between gap-3">
-          <Tabs active={activeTab} year={selectedYear} month={selectedMonth} area={selectedArea} />
+          <Tabs active={activeTab} preserve={{ year, month, area }} />
           <Filters
             years={years}
-            selectedYear={selectedYear}
-            selectedMonth={selectedMonth}
+            selectedYears={selectedYears}
+            selectedMonths={selectedMonths}
             areaOptions={AREA_OPTIONS}
-            selectedArea={selectedArea}
+            selectedAreas={selectedAreas}
           />
         </section>
 

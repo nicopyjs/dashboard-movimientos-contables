@@ -133,16 +133,19 @@ export async function getMovimientos(centros: CentrosMap): Promise<MovementRow[]
 }
 
 export type MovementFilters = {
-  month?: number; // 1-12
-  area?: string;
-  businessCenterId?: string;
+  years?: number[];
+  months?: number[]; // 1-12
+  areas?: string[];
+  businessCenterIds?: string[];
 };
 
 export function filterMovimientos(rows: MovementRow[], filters: MovementFilters): MovementRow[] {
   return rows.filter((r) => {
-    if (filters.month && r.month !== filters.month) return false;
-    if (filters.area && r.area !== filters.area) return false;
-    if (filters.businessCenterId && r.businessCenterId !== filters.businessCenterId) return false;
+    if (filters.years?.length && !filters.years.includes(Number(r.fiscalYear))) return false;
+    if (filters.months?.length && !filters.months.includes(r.month)) return false;
+    if (filters.areas?.length && !filters.areas.includes(r.area)) return false;
+    if (filters.businessCenterIds?.length && !filters.businessCenterIds.includes(r.businessCenterId))
+      return false;
     return true;
   });
 }

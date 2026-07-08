@@ -14,19 +14,19 @@ export type EstadoResultadoTab = (typeof TAB_DEFS)[number]["id"];
 
 type Props = {
   active: EstadoResultadoTab;
-  year: number;
-  month: number; // 0 = todos
-  area: string;
+  // Raw (possibly comma-separated, possibly undefined) query values to carry
+  // over to whichever tab is clicked next, preserving the current filters.
+  preserve: { year?: string; month?: string; area?: string };
 };
 
-export function Tabs({ active, year, month, area }: Props) {
+export function Tabs({ active, preserve }: Props) {
   return (
     <div className="flex flex-wrap gap-1 border-b border-slate-200">
       {TAB_DEFS.map((t) => {
         const params = new URLSearchParams();
-        params.set("year", String(year));
-        if (month) params.set("month", String(month));
-        if (area) params.set("area", area);
+        if (preserve.year !== undefined) params.set("year", preserve.year);
+        if (preserve.month) params.set("month", preserve.month);
+        if (preserve.area) params.set("area", preserve.area);
         params.set("tab", t.id);
         const isActive = t.id === active;
         return (
