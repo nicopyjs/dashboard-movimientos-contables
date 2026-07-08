@@ -1,5 +1,6 @@
 import { MultiSelectDropdown } from "@/components/MultiSelectDropdown";
 import { MONTH_LABELS } from "@/lib/monthLabels";
+import type { CentroOption } from "@/lib/movimientos";
 
 type Props = {
   years: number[];
@@ -7,9 +8,19 @@ type Props = {
   selectedMonths: number[]; // [] = todos
   areaOptions: { id: string; label: string }[];
   selectedAreas: string[]; // [] = todas
+  centroOptions: CentroOption[];
+  selectedCentros: string[]; // [] = todos
 };
 
-export function Filters({ years, selectedYears, selectedMonths, areaOptions, selectedAreas }: Props) {
+export function Filters({
+  years,
+  selectedYears,
+  selectedMonths,
+  areaOptions,
+  selectedAreas,
+  centroOptions,
+  selectedCentros,
+}: Props) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <MultiSelectDropdown
@@ -34,6 +45,15 @@ export function Filters({ years, selectedYears, selectedMonths, areaOptions, sel
         allLabel="Todas las áreas"
         options={areaOptions}
         selected={selectedAreas}
+      />
+
+      <MultiSelectDropdown
+        paramKey="centro"
+        label="Centro de negocio"
+        allLabel="Todos los centros"
+        options={centroOptions}
+        selected={selectedCentros}
+        searchable
       />
     </div>
   );

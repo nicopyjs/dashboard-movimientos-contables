@@ -53,6 +53,7 @@ export function Filters({
         allLabel="Todos los centros"
         options={centroOptions}
         selected={selectedCentros}
+        searchable
       />
     </div>
   );

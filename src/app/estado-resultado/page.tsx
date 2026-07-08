@@ -12,6 +12,7 @@ import { AreaBarChart } from "@/components/AreaBarChart";
 import { RefreshButton } from "@/components/RefreshButton";
 import { RecentMovementsTable } from "@/components/RecentMovementsTable";
 import { Pagination } from "@/components/Pagination";
+import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { Tabs, type EstadoResultadoTab, ESTADO_RESULTADO_TABS } from "@/components/estado-resultado/Tabs";
 import { Filters } from "@/components/estado-resultado/Filters";
 import { SingleMetricTrendChart } from "@/components/estado-resultado/SingleMetricTrendChart";
@@ -27,6 +28,7 @@ type SearchParams = {
   year?: string;
   month?: string;
   area?: string;
+  centro?: string;
   tab?: string;
   page?: string;
 };
@@ -37,7 +39,7 @@ export default async function EstadoResultadoPage({
   searchParams: Promise<SearchParams>;
 }) {
   const data = await getDashboardData();
-  const { year, month, area, tab, page } = await searchParams;
+  const { year, month, area, centro, tab, page } = await searchParams;
 
   const years = [...new Set(data.pnlRows.map((r) => r.year))].sort((a, b) => a - b);
   const latestYear = years[years.length - 1] ?? new Date().getFullYear();
@@ -57,6 +59,7 @@ export default async function EstadoResultadoPage({
         .filter((n) => Number.isFinite(n) && n > 0)
     : [];
   const selectedAreas = area ? area.split(",").filter(Boolean) : [];
+  const selectedCentros = centro ? centro.split(",").filter(Boolean) : [];
   const activeTab: EstadoResultadoTab = ESTADO_RESULTADO_TABS.some((t) => t.id === tab)
     ? (tab as EstadoResultadoTab)
     : "ingresos";
@@ -88,13 +91,28 @@ export default async function EstadoResultadoPage({
     years: selectedYears,
     months: selectedMonths,
     areas: selectedAreas,
+    businessCenterIds: selectedCentros,
   });
+
+  const ingresoMovements = sortMovementsDesc(movFiltered.filter((m) => m.nature === "Ingreso"));
+  const ingresoMovementsPage = paginateMovements(ingresoMovements, Number(page) || 1);
 
   const gastoMovements = sortMovementsDesc(movFiltered.filter((m) => m.nature === "Gasto"));
   const gastoMovementsPage = paginateMovements(gastoMovements, Number(page) || 1);
 
   const allMovements = sortMovementsDesc(movFiltered);
   const allMovementsPage = paginateMovements(allMovements, Number(page) || 1);
+
+  function exportHref(nature: "Ingreso" | "Gasto", filenamePrefix: string) {
+    const params = new URLSearchParams();
+    if (selectedYears.length) params.set("year", selectedYears.join(","));
+    if (selectedMonths.length) params.set("month", selectedMonths.join(","));
+    if (selectedAreas.length) params.set("area", selectedAreas.join(","));
+    if (selectedCentros.length) params.set("centro", selectedCentros.join(","));
+    params.set("nature", nature);
+    params.set("filename", `${filenamePrefix}_${selectedYears.join("-") || "todos"}`);
+    return `/api/export/movimientos?${params.toString()}`;
+  }
 
   return (
     <div className="min-h-full flex-1 bg-slate-50">
@@ -128,13 +146,15 @@ export default async function EstadoResultadoPage({
 
       <main className="mx-auto max-w-7xl space-y-6 px-6 py-8">
         <section className="flex flex-wrap items-center justify-between gap-3">
-          <Tabs active={activeTab} preserve={{ year, month, area }} />
+          <Tabs active={activeTab} preserve={{ year, month, area, centro }} />
           <Filters
             years={years}
             selectedYears={selectedYears}
             selectedMonths={selectedMonths}
             areaOptions={AREA_OPTIONS}
             selectedAreas={selectedAreas}
+            centroOptions={data.centroOptions}
+            selectedCentros={selectedCentros}
           />
         </section>
 
@@ -195,23 +215,41 @@ export default async function EstadoResultadoPage({
         )}
 
         {activeTab === "detalle-ingresos" && (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div className="space-y-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Ingresos acumulados según área
-              </h2>
-              <RankedAreaTable rows={ingresosPorArea} valueLabel="Ingresos" accentClass="text-emerald-700" />
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div className="space-y-3">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                  Ingresos acumulados según área
+                </h2>
+                <RankedAreaTable rows={ingresosPorArea} valueLabel="Ingresos" accentClass="text-emerald-700" />
+              </div>
+              <div className="space-y-3">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                  Detalle ingresos por mes
+                </h2>
+                <MonthlyAmountTable
+                  rows={monthly}
+                  metric="ingresos"
+                  valueLabel="Ingresos"
+                  accentClass="text-emerald-700"
+                />
+              </div>
             </div>
             <div className="space-y-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Detalle ingresos por mes
-              </h2>
-              <MonthlyAmountTable
-                rows={monthly}
-                metric="ingresos"
-                valueLabel="Ingresos"
-                accentClass="text-emerald-700"
-              />
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                  Movimientos contables ({ingresoMovements.length.toLocaleString("es-CL")})
+                </h2>
+                <ExportExcelButton href={exportHref("Ingreso", "ingresos")} />
+              </div>
+              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <RecentMovementsTable rows={ingresoMovementsPage.rows} />
+                <Pagination
+                  page={ingresoMovementsPage.page}
+                  totalPages={ingresoMovementsPage.totalPages}
+                  totalCount={ingresoMovementsPage.totalCount}
+                />
+              </div>
             </div>
           </div>
         )}
@@ -225,9 +263,12 @@ export default async function EstadoResultadoPage({
               <RankedAreaTable rows={gastosPorArea} valueLabel="Gastos" accentClass="text-red-700" />
             </div>
             <div className="space-y-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Movimientos contables ({gastoMovements.length.toLocaleString("es-CL")})
-              </h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                  Movimientos contables ({gastoMovements.length.toLocaleString("es-CL")})
+                </h2>
+                <ExportExcelButton href={exportHref("Gasto", "egresos")} />
+              </div>
               <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <RecentMovementsTable rows={gastoMovementsPage.rows} />
                 <Pagination

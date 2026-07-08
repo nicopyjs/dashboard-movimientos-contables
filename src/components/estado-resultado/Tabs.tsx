@@ -16,7 +16,7 @@ type Props = {
   active: EstadoResultadoTab;
   // Raw (possibly comma-separated, possibly undefined) query values to carry
   // over to whichever tab is clicked next, preserving the current filters.
-  preserve: { year?: string; month?: string; area?: string };
+  preserve: { year?: string; month?: string; area?: string; centro?: string };
 };
 
 export function Tabs({ active, preserve }: Props) {
@@ -27,6 +27,7 @@ export function Tabs({ active, preserve }: Props) {
         if (preserve.year !== undefined) params.set("year", preserve.year);
         if (preserve.month) params.set("month", preserve.month);
         if (preserve.area) params.set("area", preserve.area);
+        if (preserve.centro) params.set("centro", preserve.centro);
         params.set("tab", t.id);
         const isActive = t.id === active;
         return (
