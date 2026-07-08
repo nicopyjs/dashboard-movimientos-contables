@@ -5,6 +5,8 @@ import {
   filterMovimientos,
   sortMovementsDesc,
   paginateMovements,
+  summarizeMovementsByArea,
+  summarizeMovementsByMonth,
   AREA_OPTIONS,
 } from "@/lib/movimientos";
 import { KpiCard } from "@/components/KpiCard";
@@ -82,11 +84,6 @@ export default async function EstadoResultadoPage({
     .sort((a, b) => b.ingresos - a.ingresos)
     .map((a) => ({ areaLabel: a.areaLabel, value: a.ingresos }));
 
-  const gastosPorArea = [...areaData]
-    .filter((a) => a.gastos > 0)
-    .sort((a, b) => b.gastos - a.gastos)
-    .map((a) => ({ areaLabel: a.areaLabel, value: a.gastos }));
-
   const movFiltered = filterMovimientos(data.movimientos, {
     years: selectedYears,
     months: selectedMonths,
@@ -102,6 +99,26 @@ export default async function EstadoResultadoPage({
 
   const allMovements = sortMovementsDesc(movFiltered);
   const allMovementsPage = paginateMovements(allMovements, Number(page) || 1);
+
+  // The pnl_data sheet behind areaData/monthly has no centro column, so it
+  // can't respond to the centro filter. "Detalle Ingresos"/"Detalle Egresos"
+  // need to stay consistent with the movement list shown alongside them
+  // (which does have centro), so their area/month breakdowns are computed
+  // from movFiltered instead — this is also why their totals can differ
+  // slightly from the "Ingresos"/"Egresos"/"Estado de Resultado" tabs, which
+  // stay anchored to the official pnl_data aggregate.
+  const movAreaSummary = summarizeMovementsByArea(movFiltered);
+  const movMonthlySummary = summarizeMovementsByMonth(movFiltered);
+
+  const ingresosPorAreaDetalle = [...movAreaSummary]
+    .filter((a) => a.ingresos > 0)
+    .sort((a, b) => b.ingresos - a.ingresos)
+    .map((a) => ({ areaLabel: a.areaLabel, value: a.ingresos }));
+
+  const gastosPorAreaDetalle = [...movAreaSummary]
+    .filter((a) => a.gastos > 0)
+    .sort((a, b) => b.gastos - a.gastos)
+    .map((a) => ({ areaLabel: a.areaLabel, value: a.gastos }));
 
   function exportHref(nature: "Ingreso" | "Gasto", filenamePrefix: string) {
     const params = new URLSearchParams();
@@ -221,14 +238,18 @@ export default async function EstadoResultadoPage({
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
                   Ingresos acumulados según área
                 </h2>
-                <RankedAreaTable rows={ingresosPorArea} valueLabel="Ingresos" accentClass="text-emerald-700" />
+                <RankedAreaTable
+                  rows={ingresosPorAreaDetalle}
+                  valueLabel="Ingresos"
+                  accentClass="text-emerald-700"
+                />
               </div>
               <div className="space-y-3">
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
                   Detalle ingresos por mes
                 </h2>
                 <MonthlyAmountTable
-                  rows={monthly}
+                  rows={movMonthlySummary}
                   metric="ingresos"
                   valueLabel="Ingresos"
                   accentClass="text-emerald-700"
@@ -260,7 +281,7 @@ export default async function EstadoResultadoPage({
               <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
                 Egresos acumulados según área
               </h2>
-              <RankedAreaTable rows={gastosPorArea} valueLabel="Gastos" accentClass="text-red-700" />
+              <RankedAreaTable rows={gastosPorAreaDetalle} valueLabel="Gastos" accentClass="text-red-700" />
             </div>
             <div className="space-y-3">
               <div className="flex items-center justify-between">

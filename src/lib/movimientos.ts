@@ -150,6 +150,84 @@ export function filterMovimientos(rows: MovementRow[], filters: MovementFilters)
   });
 }
 
+// The pnl_data sheet (src/lib/pnl.ts) has no business-center column, so its
+// area/month aggregates can't respond to a centro filter. These two
+// summarize movements directly instead — same accounting convention as
+// getTopCentrosByActivity (credit-debit for cuentas de ingreso, debit-credit
+// for cuentas de gasto) — so "Detalle Ingresos"/"Detalle Egresos" can stay
+// consistent with the movement list already shown alongside them.
+export type MovementAreaSummary = {
+  area: string;
+  areaLabel: string;
+  ingresos: number;
+  gastos: number;
+  resultado: number;
+  margenPct: number;
+};
+
+export function summarizeMovementsByArea(rows: MovementRow[]): MovementAreaSummary[] {
+  const map = new Map<string, MovementAreaSummary>();
+  for (const row of rows) {
+    if (row.nature !== "Ingreso" && row.nature !== "Gasto") continue;
+    const existing = map.get(row.area) ?? {
+      area: row.area,
+      areaLabel: AREA_LABELS[row.area] ?? row.area,
+      ingresos: 0,
+      gastos: 0,
+      resultado: 0,
+      margenPct: 0,
+    };
+    if (row.nature === "Ingreso") {
+      existing.ingresos += row.credit - row.debit;
+    } else {
+      existing.gastos += row.debit - row.credit;
+    }
+    existing.resultado = existing.ingresos - existing.gastos;
+    map.set(row.area, existing);
+  }
+  const result = [...map.values()];
+  for (const a of result) a.margenPct = a.ingresos !== 0 ? (a.resultado / a.ingresos) * 100 : 0;
+  return result.sort((a, b) => b.resultado - a.resultado);
+}
+
+export type MovementMonthSummary = {
+  yearMonth: string;
+  year: number;
+  month: number;
+  ingresos: number;
+  gastos: number;
+  resultado: number;
+  margenPct: number;
+};
+
+export function summarizeMovementsByMonth(rows: MovementRow[]): MovementMonthSummary[] {
+  const map = new Map<string, MovementMonthSummary>();
+  for (const row of rows) {
+    if (row.nature !== "Ingreso" && row.nature !== "Gasto") continue;
+    const year = Number(row.fiscalYear);
+    const yearMonth = `${row.fiscalYear}-${String(row.month).padStart(2, "0")}`;
+    const existing = map.get(yearMonth) ?? {
+      yearMonth,
+      year,
+      month: row.month,
+      ingresos: 0,
+      gastos: 0,
+      resultado: 0,
+      margenPct: 0,
+    };
+    if (row.nature === "Ingreso") {
+      existing.ingresos += row.credit - row.debit;
+    } else {
+      existing.gastos += row.debit - row.credit;
+    }
+    existing.resultado = existing.ingresos - existing.gastos;
+    map.set(yearMonth, existing);
+  }
+  const result = [...map.values()];
+  for (const m of result) m.margenPct = m.ingresos !== 0 ? (m.resultado / m.ingresos) * 100 : 0;
+  return result.sort((a, b) => a.yearMonth.localeCompare(b.yearMonth));
+}
+
 export function sortMovementsDesc(rows: MovementRow[]): MovementRow[] {
   return [...rows]
     .filter((r) => r.debit !== 0 || r.credit !== 0)
