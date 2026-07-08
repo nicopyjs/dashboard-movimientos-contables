@@ -308,18 +308,20 @@ export function getTopCentrosByActivity(rows: MovementRow[], limit = 10): Centro
     .slice(0, limit);
 }
 
-export type CentroOption = { id: string; label: string };
+export type CentroOption = { id: string; label: string; area: string };
 
 export function getCentroOptions(rows: MovementRow[]): CentroOption[] {
-  const seen = new Map<string, string>();
+  const seen = new Map<string, CentroOption>();
   for (const row of rows) {
     if (row.businessCenterId && !seen.has(row.businessCenterId)) {
-      seen.set(row.businessCenterId, row.centroNombre);
+      seen.set(row.businessCenterId, {
+        id: row.businessCenterId,
+        label: row.centroNombre,
+        area: row.area,
+      });
     }
   }
-  return [...seen.entries()]
-    .map(([id, label]) => ({ id, label }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+  return [...seen.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
 
 export const AREA_OPTIONS = Object.entries(AREA_LABELS).map(([id, label]) => ({ id, label }));

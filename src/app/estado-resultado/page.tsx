@@ -60,7 +60,15 @@ export default async function EstadoResultadoPage({
         .filter((n) => Number.isFinite(n) && n > 0)
     : [];
   const selectedAreas = area ? area.split(",").filter(Boolean) : [];
-  const selectedCentros = centro ? centro.split(",").filter(Boolean) : [];
+  // Centro never touched but an área is active: pre-check every centro that
+  // belongs to that área (instead of "todos"), so the user's natural next
+  // move is to uncheck the odd one out rather than build the list from zero.
+  const selectedCentros =
+    centro !== undefined
+      ? centro.split(",").filter(Boolean)
+      : selectedAreas.length > 0
+      ? data.centroOptions.filter((c) => selectedAreas.includes(c.area)).map((c) => c.id)
+      : [];
   const activeTab: EstadoResultadoTab = ESTADO_RESULTADO_TABS.some((t) => t.id === tab)
     ? (tab as EstadoResultadoTab)
     : "ingresos";

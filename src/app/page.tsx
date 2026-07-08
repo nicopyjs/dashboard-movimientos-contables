@@ -58,7 +58,15 @@ export default async function Home({
         .filter((n) => Number.isFinite(n) && n > 0)
     : [];
   const selectedAreas = area ? area.split(",").filter(Boolean) : [];
-  const selectedCentros = centro ? centro.split(",").filter(Boolean) : [];
+  // Centro never touched but an área is active: pre-check every centro that
+  // belongs to that área (instead of "todos"), so the user's natural next
+  // move is to uncheck the odd one out rather than build the list from zero.
+  const selectedCentros =
+    centro !== undefined
+      ? centro.split(",").filter(Boolean)
+      : selectedAreas.length > 0
+      ? data.centroOptions.filter((c) => selectedAreas.includes(c.area)).map((c) => c.id)
+      : [];
   const showFullHistory = full === "1";
 
   const pnlForKpi = filterPnlRows(data.pnlRows, {
