@@ -1,10 +1,12 @@
 "use client";
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { MONTH_LABELS } from "@/lib/monthLabels";
 
 type Props = {
   years: number[];
   selectedYear: number;
+  selectedMonth: number; // 0 = todos
   areaOptions: { id: string; label: string }[];
   selectedArea: string; // "" = todas
 };
@@ -12,7 +14,7 @@ type Props = {
 const selectClass =
   "rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm";
 
-export function AreaYearFilters({ years, selectedYear, areaOptions, selectedArea }: Props) {
+export function Filters({ years, selectedYear, selectedMonth, areaOptions, selectedArea }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -24,6 +26,7 @@ export function AreaYearFilters({ years, selectedYear, areaOptions, selectedArea
     } else {
       params.delete(key);
     }
+    params.delete("page");
     router.push(`${pathname}?${params.toString()}`);
   }
 
@@ -38,6 +41,20 @@ export function AreaYearFilters({ years, selectedYear, areaOptions, selectedArea
         {years.map((year) => (
           <option key={year} value={year}>
             {year}
+          </option>
+        ))}
+      </select>
+
+      <select
+        aria-label="Mes"
+        value={selectedMonth}
+        onChange={(e) => setParam("month", e.target.value)}
+        className={selectClass}
+      >
+        <option value={0}>Todos los meses</option>
+        {MONTH_LABELS.map((label, i) => (
+          <option key={label} value={i + 1}>
+            {label}
           </option>
         ))}
       </select>

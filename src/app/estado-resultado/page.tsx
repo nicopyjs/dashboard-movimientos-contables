@@ -1,23 +1,34 @@
 import Link from "next/link";
 import { getDashboardData } from "@/lib/getDashboardData";
 import { filterPnlRows, summarizeByArea, summarizeByMonth } from "@/lib/pnl";
-import { AREA_OPTIONS } from "@/lib/movimientos";
+import {
+  filterMovimientos,
+  sortMovementsDesc,
+  paginateMovements,
+  AREA_OPTIONS,
+} from "@/lib/movimientos";
 import { KpiCard } from "@/components/KpiCard";
 import { AreaBarChart } from "@/components/AreaBarChart";
 import { RefreshButton } from "@/components/RefreshButton";
+import { RecentMovementsTable } from "@/components/RecentMovementsTable";
+import { Pagination } from "@/components/Pagination";
 import { Tabs, type EstadoResultadoTab, ESTADO_RESULTADO_TABS } from "@/components/estado-resultado/Tabs";
-import { AreaYearFilters } from "@/components/estado-resultado/AreaYearFilters";
+import { Filters } from "@/components/estado-resultado/Filters";
 import { SingleMetricTrendChart } from "@/components/estado-resultado/SingleMetricTrendChart";
 import { AreaShareDonutChart } from "@/components/estado-resultado/AreaShareDonutChart";
+import { SortedAreaLineChart } from "@/components/estado-resultado/SortedAreaLineChart";
 import { RankedAreaTable } from "@/components/estado-resultado/RankedAreaTable";
+import { MonthlyAmountTable } from "@/components/estado-resultado/MonthlyAmountTable";
 import { EstadoResultadoTable } from "@/components/estado-resultado/EstadoResultadoTable";
 
 export const dynamic = "force-dynamic";
 
 type SearchParams = {
   year?: string;
+  month?: string;
   area?: string;
   tab?: string;
+  page?: string;
 };
 
 export default async function EstadoResultadoPage({
@@ -26,26 +37,28 @@ export default async function EstadoResultadoPage({
   searchParams: Promise<SearchParams>;
 }) {
   const data = await getDashboardData();
-  const { year, area, tab } = await searchParams;
+  const { year, month, area, tab, page } = await searchParams;
 
   const years = [...new Set(data.pnlRows.map((r) => r.year))].sort((a, b) => a - b);
   const latestYear = years[years.length - 1] ?? new Date().getFullYear();
   const selectedYear = Number(year) || latestYear;
+  const selectedMonth = Number(month) || 0;
   const selectedArea = area ?? "";
   const activeTab: EstadoResultadoTab = ESTADO_RESULTADO_TABS.some((t) => t.id === tab)
     ? (tab as EstadoResultadoTab)
     : "ingresos";
 
-  const pnlForYear = filterPnlRows(data.pnlRows, {
+  const pnlForPeriod = filterPnlRows(data.pnlRows, {
     year: selectedYear,
+    month: selectedMonth || undefined,
     area: selectedArea || undefined,
   });
-  const monthly = summarizeByMonth(pnlForYear);
-  const areaData = summarizeByArea(pnlForYear);
+  const monthly = summarizeByMonth(pnlForPeriod);
+  const areaData = summarizeByArea(pnlForPeriod);
 
-  const ingresos = pnlForYear.reduce((sum, r) => sum + r.ingresos, 0);
-  const gastos = pnlForYear.reduce((sum, r) => sum + r.gastos, 0);
-  const resultado = pnlForYear.reduce((sum, r) => sum + r.resultado, 0);
+  const ingresos = pnlForPeriod.reduce((sum, r) => sum + r.ingresos, 0);
+  const gastos = pnlForPeriod.reduce((sum, r) => sum + r.gastos, 0);
+  const resultado = pnlForPeriod.reduce((sum, r) => sum + r.resultado, 0);
   const margenPct = ingresos !== 0 ? (resultado / ingresos) * 100 : 0;
 
   const ingresosPorArea = [...areaData]
@@ -57,6 +70,18 @@ export default async function EstadoResultadoPage({
     .filter((a) => a.gastos > 0)
     .sort((a, b) => b.gastos - a.gastos)
     .map((a) => ({ areaLabel: a.areaLabel, value: a.gastos }));
+
+  const movimientosForYear = data.movimientos.filter((m) => m.fiscalYear === String(selectedYear));
+  const movFiltered = filterMovimientos(movimientosForYear, {
+    month: selectedMonth || undefined,
+    area: selectedArea || undefined,
+  });
+
+  const gastoMovements = sortMovementsDesc(movFiltered.filter((m) => m.nature === "Gasto"));
+  const gastoMovementsPage = paginateMovements(gastoMovements, Number(page) || 1);
+
+  const allMovements = sortMovementsDesc(movFiltered);
+  const allMovementsPage = paginateMovements(allMovements, Number(page) || 1);
 
   return (
     <div className="min-h-full flex-1 bg-slate-50">
@@ -90,10 +115,11 @@ export default async function EstadoResultadoPage({
 
       <main className="mx-auto max-w-7xl space-y-6 px-6 py-8">
         <section className="flex flex-wrap items-center justify-between gap-3">
-          <Tabs active={activeTab} year={selectedYear} area={selectedArea} />
-          <AreaYearFilters
+          <Tabs active={activeTab} year={selectedYear} month={selectedMonth} area={selectedArea} />
+          <Filters
             years={years}
             selectedYear={selectedYear}
+            selectedMonth={selectedMonth}
             areaOptions={AREA_OPTIONS}
             selectedArea={selectedArea}
           />
@@ -118,6 +144,14 @@ export default async function EstadoResultadoPage({
                 <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                   <AreaShareDonutChart data={areaData} metric="ingresos" />
                 </div>
+              </div>
+            </div>
+            <div>
+              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Ingresos por área de negocio
+              </h2>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <SortedAreaLineChart rows={ingresosPorArea} color="#eab308" />
               </div>
             </div>
           </div>
@@ -148,20 +182,48 @@ export default async function EstadoResultadoPage({
         )}
 
         {activeTab === "detalle-ingresos" && (
-          <div className="space-y-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-              Ingresos acumulados según área
-            </h2>
-            <RankedAreaTable rows={ingresosPorArea} valueLabel="Ingresos" accentClass="text-emerald-700" />
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Ingresos acumulados según área
+              </h2>
+              <RankedAreaTable rows={ingresosPorArea} valueLabel="Ingresos" accentClass="text-emerald-700" />
+            </div>
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Detalle ingresos por mes
+              </h2>
+              <MonthlyAmountTable
+                rows={monthly}
+                metric="ingresos"
+                valueLabel="Ingresos"
+                accentClass="text-emerald-700"
+              />
+            </div>
           </div>
         )}
 
         {activeTab === "detalle-egresos" && (
-          <div className="space-y-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-              Egresos acumulados según área
-            </h2>
-            <RankedAreaTable rows={gastosPorArea} valueLabel="Gastos" accentClass="text-red-700" />
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Egresos acumulados según área
+              </h2>
+              <RankedAreaTable rows={gastosPorArea} valueLabel="Gastos" accentClass="text-red-700" />
+            </div>
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Movimientos contables ({gastoMovements.length.toLocaleString("es-CL")})
+              </h2>
+              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <RecentMovementsTable rows={gastoMovementsPage.rows} />
+                <Pagination
+                  page={gastoMovementsPage.page}
+                  totalPages={gastoMovementsPage.totalPages}
+                  totalCount={gastoMovementsPage.totalCount}
+                />
+              </div>
+            </div>
           </div>
         )}
 
@@ -179,6 +241,19 @@ export default async function EstadoResultadoPage({
               </h2>
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <AreaBarChart data={areaData} />
+              </div>
+            </div>
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Movimientos contables ({allMovements.length.toLocaleString("es-CL")})
+              </h2>
+              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <RecentMovementsTable rows={allMovementsPage.rows} />
+                <Pagination
+                  page={allMovementsPage.page}
+                  totalPages={allMovementsPage.totalPages}
+                  totalCount={allMovementsPage.totalCount}
+                />
               </div>
             </div>
           </div>

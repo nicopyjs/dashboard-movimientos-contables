@@ -15,15 +15,17 @@ export type EstadoResultadoTab = (typeof TAB_DEFS)[number]["id"];
 type Props = {
   active: EstadoResultadoTab;
   year: number;
+  month: number; // 0 = todos
   area: string;
 };
 
-export function Tabs({ active, year, area }: Props) {
+export function Tabs({ active, year, month, area }: Props) {
   return (
     <div className="flex flex-wrap gap-1 border-b border-slate-200">
       {TAB_DEFS.map((t) => {
         const params = new URLSearchParams();
         params.set("year", String(year));
+        if (month) params.set("month", String(month));
         if (area) params.set("area", area);
         params.set("tab", t.id);
         const isActive = t.id === active;
