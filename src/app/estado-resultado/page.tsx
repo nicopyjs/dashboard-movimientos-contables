@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { getDashboardData } from "@/lib/getDashboardData";
-import { filterPnlRows, summarizeByArea, summarizeByMonth } from "@/lib/pnl";
 import {
   filterMovimientos,
   sortMovementsDesc,
@@ -43,7 +42,7 @@ export default async function EstadoResultadoPage({
   const data = await getDashboardData();
   const { year, month, area, centro, tab, page } = await searchParams;
 
-  const years = [...new Set(data.pnlRows.map((r) => r.year))].sort((a, b) => a - b);
+  const years = [...new Set(data.movimientos.map((m) => Number(m.fiscalYear)))].sort((a, b) => a - b);
   const latestYear = years[years.length - 1] ?? new Date().getFullYear();
   // `year` absent = filter never touched yet, default to the latest year.
   // `year` present but empty = user explicitly cleared it, meaning "todos".
@@ -66,17 +65,25 @@ export default async function EstadoResultadoPage({
     ? (tab as EstadoResultadoTab)
     : "ingresos";
 
-  const pnlForPeriod = filterPnlRows(data.pnlRows, {
+  // pnl_data (the aggregate sheet) has no business-center column, so it can
+  // never respond to a centro filter. Every tab on this page is driven by
+  // the movimientos ledger instead — same accounting convention as
+  // getTopCentrosByActivity on the main dashboard (credit-debit for cuentas
+  // de ingreso, debit-credit for cuentas de gasto) — so year/month/área/
+  // centro all apply consistently everywhere.
+  const movFiltered = filterMovimientos(data.movimientos, {
     years: selectedYears,
     months: selectedMonths,
     areas: selectedAreas,
+    businessCenterIds: selectedCentros,
   });
-  const monthly = summarizeByMonth(pnlForPeriod);
-  const areaData = summarizeByArea(pnlForPeriod);
 
-  const ingresos = pnlForPeriod.reduce((sum, r) => sum + r.ingresos, 0);
-  const gastos = pnlForPeriod.reduce((sum, r) => sum + r.gastos, 0);
-  const resultado = pnlForPeriod.reduce((sum, r) => sum + r.resultado, 0);
+  const areaData = summarizeMovementsByArea(movFiltered);
+  const monthly = summarizeMovementsByMonth(movFiltered);
+
+  const ingresos = areaData.reduce((sum, a) => sum + a.ingresos, 0);
+  const gastos = areaData.reduce((sum, a) => sum + a.gastos, 0);
+  const resultado = ingresos - gastos;
   const margenPct = ingresos !== 0 ? (resultado / ingresos) * 100 : 0;
 
   const ingresosPorArea = [...areaData]
@@ -84,12 +91,10 @@ export default async function EstadoResultadoPage({
     .sort((a, b) => b.ingresos - a.ingresos)
     .map((a) => ({ areaLabel: a.areaLabel, value: a.ingresos }));
 
-  const movFiltered = filterMovimientos(data.movimientos, {
-    years: selectedYears,
-    months: selectedMonths,
-    areas: selectedAreas,
-    businessCenterIds: selectedCentros,
-  });
+  const gastosPorArea = [...areaData]
+    .filter((a) => a.gastos > 0)
+    .sort((a, b) => b.gastos - a.gastos)
+    .map((a) => ({ areaLabel: a.areaLabel, value: a.gastos }));
 
   const ingresoMovements = sortMovementsDesc(movFiltered.filter((m) => m.nature === "Ingreso"));
   const ingresoMovementsPage = paginateMovements(ingresoMovements, Number(page) || 1);
@@ -99,26 +104,6 @@ export default async function EstadoResultadoPage({
 
   const allMovements = sortMovementsDesc(movFiltered);
   const allMovementsPage = paginateMovements(allMovements, Number(page) || 1);
-
-  // The pnl_data sheet behind areaData/monthly has no centro column, so it
-  // can't respond to the centro filter. "Detalle Ingresos"/"Detalle Egresos"
-  // need to stay consistent with the movement list shown alongside them
-  // (which does have centro), so their area/month breakdowns are computed
-  // from movFiltered instead — this is also why their totals can differ
-  // slightly from the "Ingresos"/"Egresos"/"Estado de Resultado" tabs, which
-  // stay anchored to the official pnl_data aggregate.
-  const movAreaSummary = summarizeMovementsByArea(movFiltered);
-  const movMonthlySummary = summarizeMovementsByMonth(movFiltered);
-
-  const ingresosPorAreaDetalle = [...movAreaSummary]
-    .filter((a) => a.ingresos > 0)
-    .sort((a, b) => b.ingresos - a.ingresos)
-    .map((a) => ({ areaLabel: a.areaLabel, value: a.ingresos }));
-
-  const gastosPorAreaDetalle = [...movAreaSummary]
-    .filter((a) => a.gastos > 0)
-    .sort((a, b) => b.gastos - a.gastos)
-    .map((a) => ({ areaLabel: a.areaLabel, value: a.gastos }));
 
   function exportHref(nature: "Ingreso" | "Gasto", filenamePrefix: string) {
     const params = new URLSearchParams();
@@ -239,7 +224,7 @@ export default async function EstadoResultadoPage({
                   Ingresos acumulados según área
                 </h2>
                 <RankedAreaTable
-                  rows={ingresosPorAreaDetalle}
+                  rows={ingresosPorArea}
                   valueLabel="Ingresos"
                   accentClass="text-emerald-700"
                 />
@@ -249,7 +234,7 @@ export default async function EstadoResultadoPage({
                   Detalle ingresos por mes
                 </h2>
                 <MonthlyAmountTable
-                  rows={movMonthlySummary}
+                  rows={monthly}
                   metric="ingresos"
                   valueLabel="Ingresos"
                   accentClass="text-emerald-700"
@@ -281,7 +266,7 @@ export default async function EstadoResultadoPage({
               <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
                 Egresos acumulados según área
               </h2>
-              <RankedAreaTable rows={gastosPorAreaDetalle} valueLabel="Gastos" accentClass="text-red-700" />
+              <RankedAreaTable rows={gastosPorArea} valueLabel="Gastos" accentClass="text-red-700" />
             </div>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
