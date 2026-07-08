@@ -1,13 +1,13 @@
 import { getCentrosMap } from "./centros";
 import { getPnlRows } from "./pnl";
-import { getMovimientos2026, getCentroOptions } from "./movimientos";
+import { getMovimientos, getCentroOptions } from "./movimientos";
 import { isLiveMode } from "./sheets";
 
 async function loadDashboardData() {
   const centros = await getCentrosMap();
   const [pnlRows, movimientos] = await Promise.all([
     getPnlRows(),
-    getMovimientos2026(centros),
+    getMovimientos(centros),
   ]);
 
   return {
@@ -21,7 +21,7 @@ async function loadDashboardData() {
 
 export type DashboardData = Awaited<ReturnType<typeof loadDashboardData>>;
 
-// The movimientos dataset (40k+ rows) is too large for Next's `unstable_cache`
+// The movimientos dataset (180k+ rows across histórico + año en curso) is too large for Next's `unstable_cache`
 // (2MB per-entry limit), so we keep a plain in-memory cache instead. It's
 // per server instance, which is fine here: worst case a cold instance just
 // refetches from Google Sheets once.

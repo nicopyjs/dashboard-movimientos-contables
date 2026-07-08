@@ -15,14 +15,9 @@ const LOCAL_FALLBACK: Record<string, string> = {
   "1b4QPLY0otfzhSkJ7QQscJALJu7DssHi9w1XCad2LI48": "pnl_data.csv",
 };
 
-async function readLocalCsv(spreadsheetId: string): Promise<Row[]> {
-  const file = LOCAL_FALLBACK[spreadsheetId];
-  if (!file) {
-    // No local snapshot available (e.g. the full histórico file) — behave
-    // as an empty sheet until real credentials are configured.
-    return [];
-  }
-  const filePath = path.join(process.cwd(), "data", file);
+/** Reads and parses a CSV snapshot from the `data/` directory by file name. */
+export async function readLocalDataFile(fileName: string): Promise<Row[]> {
+  const filePath = path.join(process.cwd(), "data", fileName);
   let csv: string;
   try {
     csv = await fs.readFile(filePath, "utf-8");
@@ -34,6 +29,16 @@ async function readLocalCsv(spreadsheetId: string): Promise<Row[]> {
   }
   const { data } = Papa.parse<Row>(csv, { header: true, skipEmptyLines: true });
   return data;
+}
+
+async function readLocalCsv(spreadsheetId: string): Promise<Row[]> {
+  const file = LOCAL_FALLBACK[spreadsheetId];
+  if (!file) {
+    // No local snapshot available — behave as an empty sheet until real
+    // credentials are configured.
+    return [];
+  }
+  return readLocalDataFile(file);
 }
 
 let sheetsClientPromise: Promise<import("googleapis").sheets_v4.Sheets> | null = null;

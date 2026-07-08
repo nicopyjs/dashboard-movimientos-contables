@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getDashboardData } from "@/lib/getDashboardData";
 import { filterPnlRows, summarizeByArea, summarizeByMonth } from "@/lib/pnl";
 import {
@@ -92,6 +93,12 @@ export default async function Home({
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <Link
+              href="/estado-resultado"
+              className="text-sm font-medium text-slate-500 hover:text-slate-700"
+            >
+              Estado de Resultado →
+            </Link>
             <RefreshButton />
             <form action="/api/logout" method="POST">
               <button

@@ -1,4 +1,4 @@
-import { fetchSheetRows, type Row } from "./sheets";
+import { fetchSheetRows, readLocalDataFile, type Row } from "./sheets";
 import { SPREADSHEET_IDS, SHEET_TABS, AREA_LABELS } from "./constants";
 import { parseCLPNumber } from "./parseNumber";
 import { type CentrosMap, resolveCentroName } from "./centros";
@@ -74,8 +74,7 @@ function fillBusinessCenters<T extends { voucherNumber: string; businessCenterId
   );
 }
 
-export async function getMovimientos2026(centros: CentrosMap): Promise<MovementRow[]> {
-  const rows = await fetchSheetRows(SPREADSHEET_IDS.movimientos2026, SHEET_TABS.movimientos);
+function toMovementRows(rows: Row[], centros: CentrosMap): MovementRow[] {
   const filled = fillBusinessCenters(rows.map(toRawMovement));
 
   return filled.map((r) => {
@@ -88,6 +87,49 @@ export async function getMovimientos2026(centros: CentrosMap): Promise<MovementR
       nature: natureFromAccountCode(r.accountCode),
     };
   });
+}
+
+async function fetchMovimientosSheet(
+  spreadsheetId: string,
+  centros: CentrosMap
+): Promise<MovementRow[]> {
+  const rows = await fetchSheetRows(spreadsheetId, SHEET_TABS.movimientos);
+  return toMovementRows(rows, centros);
+}
+
+// El histórico (2021-2025) es un dataset cerrado que ya no cambia. En local
+// se lee de un snapshot (data/movimientos_historico.csv) para evitar ~30s de
+// descarga en cada reinicio del servidor de desarrollo. Ese snapshot nunca se
+// sube a git ni a Vercel (ver .gitignore/.vercelignore: son datos contables
+// reales y el repo es público), así que en producción cae automáticamente al
+// fetch en vivo — igual se cachea en memoria por instancia de servidor.
+const HISTORICO_SNAPSHOT_FILE = "movimientos_historico.csv";
+let historicoCache: Promise<MovementRow[]> | null = null;
+
+async function loadHistoricoRows(): Promise<Row[]> {
+  const localRows = await readLocalDataFile(HISTORICO_SNAPSHOT_FILE);
+  if (localRows.length > 0) return localRows;
+  return fetchSheetRows(SPREADSHEET_IDS.historico, SHEET_TABS.movimientos);
+}
+
+function getMovimientosHistorico(centros: CentrosMap): Promise<MovementRow[]> {
+  if (!historicoCache) {
+    historicoCache = loadHistoricoRows()
+      .then((rows) => toMovementRows(rows, centros))
+      .catch((err) => {
+        historicoCache = null;
+        throw err;
+      });
+  }
+  return historicoCache;
+}
+
+export async function getMovimientos(centros: CentrosMap): Promise<MovementRow[]> {
+  const [historico, actual] = await Promise.all([
+    getMovimientosHistorico(centros),
+    fetchMovimientosSheet(SPREADSHEET_IDS.movimientos2026, centros),
+  ]);
+  return [...historico, ...actual];
 }
 
 export type MovementFilters = {
