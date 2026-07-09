@@ -30,6 +30,7 @@ type SearchParams = {
   month?: string;
   area?: string;
   centro?: string;
+  excluirCentro?: string;
   tab?: string;
   page?: string;
 };
@@ -40,7 +41,7 @@ export default async function EstadoResultadoPage({
   searchParams: Promise<SearchParams>;
 }) {
   const data = await getDashboardData();
-  const { year, month, area, centro, tab, page } = await searchParams;
+  const { year, month, area, centro, excluirCentro, tab, page } = await searchParams;
 
   const years = [...new Set(data.movimientos.map((m) => Number(m.fiscalYear)))].sort((a, b) => a - b);
   const latestYear = years[years.length - 1] ?? new Date().getFullYear();
@@ -60,14 +61,21 @@ export default async function EstadoResultadoPage({
         .filter((n) => Number.isFinite(n) && n > 0)
     : [];
   const selectedAreas = area ? area.split(",").filter(Boolean) : [];
-  // Centro never touched but an área is active: pre-check every centro that
-  // belongs to that área (instead of "todos"), so the user's natural next
-  // move is to uncheck the odd one out rather than build the list from zero.
+  // With an área active, "todos los centros de esa área" is the default —
+  // tracked as an exclusion list (excluirCentro) so unchecking just the odd
+  // one out doesn't require echoing every other centro id back in the URL.
+  // An explicit `centro` include-list (e.g. picked with no área active)
+  // always wins over that default.
+  const areaCentroIds =
+    selectedAreas.length > 0
+      ? data.centroOptions.filter((c) => selectedAreas.includes(c.area)).map((c) => c.id)
+      : [];
+  const excludedCentros = excluirCentro ? excluirCentro.split(",").filter(Boolean) : [];
   const selectedCentros =
     centro !== undefined
       ? centro.split(",").filter(Boolean)
       : selectedAreas.length > 0
-      ? data.centroOptions.filter((c) => selectedAreas.includes(c.area)).map((c) => c.id)
+      ? areaCentroIds.filter((id) => !excludedCentros.includes(id))
       : [];
   const activeTab: EstadoResultadoTab = ESTADO_RESULTADO_TABS.some((t) => t.id === tab)
     ? (tab as EstadoResultadoTab)
@@ -156,7 +164,7 @@ export default async function EstadoResultadoPage({
 
       <main className="mx-auto max-w-7xl space-y-6 px-6 py-8">
         <section className="flex flex-wrap items-center justify-between gap-3">
-          <Tabs active={activeTab} preserve={{ year, month, area, centro }} />
+          <Tabs active={activeTab} preserve={{ year, month, area, centro, excluirCentro }} />
           <Filters
             years={years}
             selectedYears={selectedYears}

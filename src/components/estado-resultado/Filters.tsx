@@ -21,6 +21,14 @@ export function Filters({
   centroOptions,
   selectedCentros,
 }: Props) {
+  // With an área active, only offer that área's centros (no need to type
+  // "rct" to find them), and treat the picker as an exclusion list on top of
+  // "todos los centros de esta área" instead of a from-scratch inclusion list.
+  const scopedCentroOptions =
+    selectedAreas.length > 0
+      ? centroOptions.filter((c) => selectedAreas.includes(c.area))
+      : centroOptions;
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       <MultiSelectDropdown
@@ -48,10 +56,11 @@ export function Filters({
       />
 
       <MultiSelectDropdown
-        paramKey="centro"
+        paramKey={selectedAreas.length > 0 ? "excluirCentro" : "centro"}
+        mode={selectedAreas.length > 0 ? "exclude" : "include"}
         label="Centro de negocio"
         allLabel="Todos los centros"
-        options={centroOptions}
+        options={scopedCentroOptions}
         selected={selectedCentros}
         searchable
       />

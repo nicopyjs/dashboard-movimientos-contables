@@ -14,6 +14,10 @@ type Props = {
   selected: string[];
   resetPageParam?: boolean;
   searchable?: boolean;
+  // "exclude" writes the *unchecked* ids to paramKey instead of the checked
+  // ones — for a long `options` list where most items stay checked, this
+  // keeps the URL to a couple of ids instead of echoing back everyone else.
+  mode?: "include" | "exclude";
 };
 
 export function MultiSelectDropdown({
@@ -24,6 +28,7 @@ export function MultiSelectDropdown({
   selected,
   resetPageParam = true,
   searchable = false,
+  mode = "include",
 }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -59,13 +64,41 @@ export function MultiSelectDropdown({
     router.push(`${pathname}?${params.toString()}`);
   }
 
+  function clear() {
+    const params = new URLSearchParams(searchParams.toString());
+    // In exclude mode, "clear" means "no exclusions" — that's the absence of
+    // the param, not an explicit empty value (which would mean something
+    // different in include mode: "nothing selected").
+    if (mode === "exclude") {
+      params.delete(paramKey);
+    } else {
+      params.set(paramKey, "");
+    }
+    if (resetPageParam) params.delete("page");
+    router.push(`${pathname}?${params.toString()}`);
+  }
+
   function toggle(id: string) {
+    if (mode === "exclude") {
+      const isChecked = selected.includes(id);
+      const currentlyExcluded = options.filter((o) => !selected.includes(o.id)).map((o) => o.id);
+      const nextExcluded = isChecked
+        ? [...currentlyExcluded, id]
+        : currentlyExcluded.filter((v) => v !== id);
+      commit(nextExcluded);
+      return;
+    }
     const next = selected.includes(id) ? selected.filter((v) => v !== id) : [...selected, id];
     commit(next);
   }
 
+  const allChecked = mode === "exclude" && selected.length === options.length;
+  const hasActiveFilter = mode === "exclude" ? !allChecked : selected.length > 0;
+
   const summary =
-    selected.length === 0
+    mode === "exclude" && allChecked
+      ? allLabel
+      : selected.length === 0
       ? allLabel
       : selected.length === 1
       ? options.find((o) => o.id === selected[0])?.label ?? selected[0]
@@ -90,10 +123,10 @@ export function MultiSelectDropdown({
         >
           <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
             <span className="text-xs font-semibold uppercase text-slate-400">{label}</span>
-            {selected.length > 0 && (
+            {hasActiveFilter && (
               <button
                 type="button"
-                onClick={() => commit([])}
+                onClick={clear}
                 className="text-xs font-medium text-blue-600 hover:underline"
               >
                 Limpiar

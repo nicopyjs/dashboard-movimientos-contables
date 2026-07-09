@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { getDashboardData } from "@/lib/getDashboardData";
-import { filterPnlRows, summarizeByArea, summarizeByMonth } from "@/lib/pnl";
 import {
   filterMovimientos,
   sortMovementsDesc,
   paginateMovements,
   getTopCentrosByActivity,
+  summarizeMovementsByArea,
+  summarizeMovementsByMonth,
   AREA_OPTIONS,
 } from "@/lib/movimientos";
 import { KpiCard } from "@/components/KpiCard";
@@ -28,6 +29,7 @@ type SearchParams = {
   month?: string;
   area?: string;
   centro?: string;
+  excluirCentro?: string;
   full?: string;
   page?: string;
 };
@@ -38,9 +40,9 @@ export default async function Home({
   searchParams: Promise<SearchParams>;
 }) {
   const data = await getDashboardData();
-  const { year, month, area, centro, full, page } = await searchParams;
+  const { year, month, area, centro, excluirCentro, full, page } = await searchParams;
 
-  const years = [...new Set(data.pnlRows.map((r) => r.year))].sort((a, b) => a - b);
+  const years = [...new Set(data.movimientos.map((m) => Number(m.fiscalYear)))].sort((a, b) => a - b);
   const latestYear = years[years.length - 1] ?? new Date().getFullYear();
   // `year` absent = filter never touched yet, default to the latest year.
   // `year` present but empty = user explicitly cleared it, meaning "todos".
@@ -58,42 +60,51 @@ export default async function Home({
         .filter((n) => Number.isFinite(n) && n > 0)
     : [];
   const selectedAreas = area ? area.split(",").filter(Boolean) : [];
-  // Centro never touched but an área is active: pre-check every centro that
-  // belongs to that área (instead of "todos"), so the user's natural next
-  // move is to uncheck the odd one out rather than build the list from zero.
+  // With an área active, "todos los centros de esa área" is the default —
+  // tracked as an exclusion list (excluirCentro) so unchecking just the odd
+  // one out doesn't require echoing every other centro id back in the URL.
+  // An explicit `centro` include-list (e.g. picked with no área active)
+  // always wins over that default.
+  const areaCentroIds =
+    selectedAreas.length > 0
+      ? data.centroOptions.filter((c) => selectedAreas.includes(c.area)).map((c) => c.id)
+      : [];
+  const excludedCentros = excluirCentro ? excluirCentro.split(",").filter(Boolean) : [];
   const selectedCentros =
     centro !== undefined
       ? centro.split(",").filter(Boolean)
       : selectedAreas.length > 0
-      ? data.centroOptions.filter((c) => selectedAreas.includes(c.area)).map((c) => c.id)
+      ? areaCentroIds.filter((id) => !excludedCentros.includes(id))
       : [];
   const showFullHistory = full === "1";
 
-  const pnlForKpi = filterPnlRows(data.pnlRows, {
-    years: selectedYears,
-    months: selectedMonths,
-    areas: selectedAreas,
-  });
-  const pnlForTrend = filterPnlRows(data.pnlRows, {
-    years: showFullHistory ? [] : selectedYears,
-    months: selectedMonths,
-    areas: selectedAreas,
-  });
-
-  const ingresos = pnlForKpi.reduce((sum, r) => sum + r.ingresos, 0);
-  const gastos = pnlForKpi.reduce((sum, r) => sum + r.gastos, 0);
-  const resultado = pnlForKpi.reduce((sum, r) => sum + r.resultado, 0);
-  const margenPct = ingresos !== 0 ? (resultado / ingresos) * 100 : 0;
-
-  const monthly = summarizeByMonth(pnlForTrend);
-  const areaData = summarizeByArea(pnlForKpi);
-
+  // pnl_data (the aggregate sheet) has no business-center column, so it can
+  // never respond to a centro filter — every KPI/chart here is driven by the
+  // movimientos ledger instead (same accounting convention used across the
+  // rest of the app: credit-debit for cuentas de ingreso, debit-credit for
+  // cuentas de gasto).
   const movFiltered = filterMovimientos(data.movimientos, {
     years: selectedYears,
     months: selectedMonths,
     areas: selectedAreas,
     businessCenterIds: selectedCentros,
   });
+  const movForTrend = showFullHistory
+    ? filterMovimientos(data.movimientos, {
+        months: selectedMonths,
+        areas: selectedAreas,
+        businessCenterIds: selectedCentros,
+      })
+    : movFiltered;
+
+  const areaData = summarizeMovementsByArea(movFiltered);
+  const monthly = summarizeMovementsByMonth(movForTrend);
+
+  const ingresos = areaData.reduce((sum, a) => sum + a.ingresos, 0);
+  const gastos = areaData.reduce((sum, a) => sum + a.gastos, 0);
+  const resultado = ingresos - gastos;
+  const margenPct = ingresos !== 0 ? (resultado / ingresos) * 100 : 0;
+
   const sortedMovements = sortMovementsDesc(movFiltered);
   const movementsPage = paginateMovements(sortedMovements, Number(page) || 1);
   const topCentros = getTopCentrosByActivity(movFiltered, 10);
