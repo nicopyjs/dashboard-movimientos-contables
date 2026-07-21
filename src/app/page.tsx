@@ -15,6 +15,11 @@ import { AreaBarChart } from "@/components/AreaBarChart";
 import { IngresosDonutChart } from "@/components/IngresosDonutChart";
 import { MargenTrendChart } from "@/components/MargenTrendChart";
 import { CumulativeResultChart } from "@/components/CumulativeResultChart";
+import {
+  CumulativeIncomeChart,
+  CumulativeExpenseChart,
+  CumulativeCombinedChart,
+} from "@/components/CumulativeCharts";
 import { RecentMovementsTable } from "@/components/RecentMovementsTable";
 import { TopCentrosTable } from "@/components/TopCentrosTable";
 import { RefreshButton } from "@/components/RefreshButton";
@@ -202,6 +207,34 @@ export default async function Home({
             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <CumulativeResultChart data={monthly} />
             </div>
+          </div>
+        </section>
+
+        <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div>
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Gasto acumulado
+            </h2>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <CumulativeExpenseChart data={monthly} />
+            </div>
+          </div>
+          <div>
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Ingreso acumulado
+            </h2>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <CumulativeIncomeChart data={monthly} />
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Ingresos, gastos y resultado acumulados
+          </h2>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <CumulativeCombinedChart data={monthly} />
           </div>
         </section>
 
